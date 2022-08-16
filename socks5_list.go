@@ -11,6 +11,7 @@ import (
 	"strings"
 )
 
+// Socks5Lister , here you can implement your own socks5_list function
 type Socks5Lister interface {
 	List() ([]string, error)
 }
